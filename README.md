@@ -7,9 +7,13 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/pypi/pyversions/cma-atlas?style=flat-square" alt="Python Version"/></a>
   -->
 </p>
-  
+
 <p align="center">
   <img src="./docs/resources/AtlasLogo_WhiteOnBlack_alpha.png" width="350"/>
 </p>
 
 Atlas is (will be) an interface to a series of biological databases. With Atlas, you can download and parse the raw data provided by the servers in a machine-readable format of your choosing for further processing. Interfacing with each service's API is (will be) handled by Atlas, so you can just worry about analyzing the data, not retrieving it.
+
+## License
+
+Atlas is licensed under the [MIT](https://opensource.org/licenses/MIT) license.
