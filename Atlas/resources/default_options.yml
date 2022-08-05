@@ -1,0 +1,9 @@
+# Configuration file for bioTEA
+
+logging:
+  log_folder: "~/.atlas/logs/"
+  console_log_level: "DEBUG"
+  file_log_level: "DEBUG"
+
+storage:
+  SQLite_location: "~/.atlas/database/"
