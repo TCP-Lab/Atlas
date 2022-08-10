@@ -4,6 +4,7 @@ from pathlib import Path
 import colorama as c
 import typer
 
+from atlas.core import Atlas
 from atlas.utils.strings import INFO
 
 log = logging.getLogger(__name__)
@@ -75,7 +76,11 @@ def retrieve_command(
         f"Invoked retrieve command. Args: target: '{target}', query_file: '{query_file}'"
     )
 
-    raise NotImplementedError()
+    # raise NotImplementedError()
+
+    atlas = Atlas()
+
+    atlas.fulfill_query()
 
 
 # This is just here to wrap (cli_root) in case we ever need to change its

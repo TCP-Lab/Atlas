@@ -24,34 +24,12 @@ It is up to Atlas to marge all of these outputs in a way that makes sense,
 and save it out as the correct output formats.
 
 """
-
+import concurrent.futures
 from abc import ABC, abstractmethod
-
-from atlas.errors import MissingConcreteAttributeError
-
-
-class AtlasABC(ABC):
-    """Extra checks for class attributes to be defined."""
-
-    abstracted_attributes: list[str] = []
-    """Put in this list all class attributes that MUST NOT be None."""
-
-    # This is NOT the correct way to check if a class attribute is missing,
-    # but the canonical decorator way sucks. You need to specify variables
-    # as methods, that will get overwritten when you specify them. You cannot
-    # even annotate types. It is super counterintuitive.
-    # This fixes it, but you need to add Abstract attributes to
-    # "abstracted_attributes".
-    def __init_subclass__(cls, /, **kwargs):
-        super().__init_subclass__(**kwargs)
-        for item in cls.abstracted_attributes:
-            if cls.__dict__.get(item, None) is None:
-                raise MissingConcreteAttributeError(
-                    f"Must specify `{item}` in concrete class."
-                )
+from multiprocessing import cpu_count
 
 
-class AtlasDownloader(AtlasABC):
+class AtlasDownloader(ABC):
     @abstractmethod
     def retrieve(self):
         """Download from the remote repository what we need to download
@@ -61,23 +39,19 @@ class AtlasDownloader(AtlasABC):
         pass
 
 
-class AtlasProcessor(AtlasABC):
+class AtlasProcessor(ABC):
     @abstractmethod
     def __call__(self, melted_data):
         pass
 
 
-class AtlasInterface(AtlasABC):
-    """"""
+class AtlasInterface(ABC):
+    downloader: AtlasDownloader
+    processor: AtlasProcessor
 
-    downloader: AtlasDownloader = None
-    processor: AtlasProcessor = None
-
-    paths: list[tuple[str]] = None
+    paths: list[tuple[str]]
     # These are the paths that are supported by the interface. Checked
     # by Atlas when fulfilling queries.
-
-    abstracted_attributes: list[str] = ["downloader", "processor", "paths"]
 
     def run(self):
         raw_data = self.downloader.retrieve()
@@ -86,17 +60,20 @@ class AtlasInterface(AtlasABC):
         return processed_data
 
 
-class AtlasQuery(AtlasABC):
+class AtlasQuery(ABC):
     def __init__(self, query: dict) -> None:
-        self.paths = None
-
+        self.paths = query["paths"]
         self.filters = query["filters"]
 
 
-class Atlas(AtlasABC):
-    interfaces: list = None
-
-    abstracted_attributes: list[str] = ["interfaces"]
+class Atlas(ABC):
+    interfaces: list
 
     def fulfill_query(query: AtlasQuery):
-        pass
+
+        query_interfaces = []
+
+        pool = concurrent.futures.ThreadPoolExecutor(cpu_count())
+        data = pool.map(lambda x: x.run(), query_interfaces)
+
+        return data
