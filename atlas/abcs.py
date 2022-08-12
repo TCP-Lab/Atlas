@@ -24,56 +24,69 @@ It is up to Atlas to marge all of these outputs in a way that makes sense,
 and save it out as the correct output formats.
 
 """
-import concurrent.futures
+import logging
 from abc import ABC, abstractmethod
-from multiprocessing import cpu_count
+from multiprocessing import current_process
+
+log = logging.getLogger(__name__)
 
 
 class AtlasDownloader(ABC):
     @abstractmethod
-    def retrieve(self):
+    def retrieve(self, name: str):
         """Download from the remote repository what we need to download
 
         Retrieves the raw data to be processed by Processors.
         """
         pass
 
+    @property
+    def worker_id(self):
+        process = current_process()
+        if process.name == "MainProcess":
+            log.warning("A processor asked for the worker ID in the main process.")
+            return 0
+
+        return process._identity[0]
+
 
 class AtlasProcessor(ABC):
     @abstractmethod
-    def __call__(self, melted_data):
+    def __call__(self, name: str, melted_data):
         pass
+
+    @property
+    def worker_id(self):
+        process = current_process()
+        if process.name == "MainProcess":
+            log.warning("A processor asked for the worker ID in the main process.")
+            return 0
+
+        return process._identity[0]
 
 
 class AtlasInterface(ABC):
     downloader: AtlasDownloader
     processor: AtlasProcessor
+    name: str = "Undefined Interface"
 
-    paths: list[tuple[str]]
+    paths: list[str]
     # These are the paths that are supported by the interface. Checked
     # by Atlas when fulfilling queries.
 
     def run(self):
-        raw_data = self.downloader.retrieve()
-        processed_data = self.processor(raw_data)
+        try:
+            raw_data = self.downloader.retrieve(name=self.name)
+            processed_data = self.processor(name=self.name, melted_data=raw_data)
 
-        return processed_data
+            return processed_data
+        except Exception as e:
+            # Catch any errors happening in the workers, and give them to the main
+            # thread. They will be re-raised there, if needed.
+            return e
 
 
 class AtlasQuery(ABC):
     def __init__(self, query: dict) -> None:
         self.paths = query["paths"]
         self.filters = query["filters"]
-
-
-class Atlas(ABC):
-    interfaces: list
-
-    def fulfill_query(query: AtlasQuery):
-
-        query_interfaces = []
-
-        pool = concurrent.futures.ThreadPoolExecutor(cpu_count())
-        data = pool.map(lambda x: x.run(), query_interfaces)
-
-        return data

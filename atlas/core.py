@@ -1,72 +1,35 @@
 import concurrent.futures
 import logging
-import time
-from multiprocessing import cpu_count, current_process
-from random import randint, randrange
+import sys
+from multiprocessing import cpu_count
 
-import pandas as pd
 from tqdm import tqdm
 
 import atlas.abcs as abcs
+from atlas.interfaces import ALL_INTERFACES
 
 log = logging.getLogger(__name__)
 
-
-class IDFactory:
-    def __init__(self) -> None:
-        self.x = 0
-
-    def __call__(self) -> int:
-        self.x += 1
-        return self.x
-
-
-ids = IDFactory()
-
-
-class TestDownloader(abcs.AtlasDownloader):
-    def retrieve(self):
-        test_time = randint(5, 15)
-
-        id = current_process()._identity[0] - 1
-
-        for _ in tqdm(
-            range(test_time), f"Test Download {id}", position=id, leave=False
-        ):
-            time.sleep(randrange(20, 150, 1) / 100)
-
-        return {"ids": ["a", "b", "c"], "values": [1, 2, 3]}
-
-
-class TestProcessor(abcs.AtlasProcessor):
-    def __call__(self, melted_data):
-        test_time = randint(5, 15)
-
-        id = current_process()._identity[0] - 1
-
-        for _ in tqdm(
-            range(test_time), f"Test Processing {id}", position=id, leave=False
-        ):
-            time.sleep(randrange(20, 150, 1) / 100)
-
-        return pd.DataFrame(melted_data)
-
-
-class TestInterface(abcs.AtlasInterface):
-    downloader: abcs.AtlasDownloader = TestDownloader()
-    processor: abcs.AtlasProcessor = TestProcessor()
-
-
+# The ProcessPoolExecutor needs a top-level function as it needs to pickle the
+# object to send it to the worker process. So, we can't use a lambda here, we
+# need to do it like this.
 def run(x):
     return x.run()
 
 
-class Atlas(abcs.Atlas):
-    interfaces: list = []
+class Atlas:
+    interfaces: list = ALL_INTERFACES
 
-    def fulfill_query(query: abcs.AtlasQuery):
-
-        query_interfaces = [TestInterface() for _ in range(6)]
+    def fulfill_query(self, query: abcs.AtlasQuery):
+        query_interfaces = []
+        for path in query.paths:
+            try:
+                query_interfaces.append(self.supported_paths[path])
+            except KeyError:
+                log.error(
+                    f"Unsupported or invalid path '{path}'. Cannot fulfull query."
+                )
+                sys.exit(1)
 
         cpus = cpu_count()
 
@@ -76,4 +39,21 @@ class Atlas(abcs.Atlas):
         ) as pool:
             data = list(pool.map(run, query_interfaces))
 
+        print(data)
+
+        # Handle errors coming from child processes.
+        for i, item in enumerate(data):
+            if isinstance(item, Exception):
+                log.error(f"Interface {query_interfaces[i]} errorer with {type(item)}.")
+                raise item
+
         return data
+
+    @property
+    def supported_paths(self):
+        paths = {}
+        for interface in self.interfaces:
+            for path in interface.paths:
+                paths.update({path: interface})
+
+        return paths

@@ -4,6 +4,7 @@ from pathlib import Path
 import colorama as c
 import typer
 
+from atlas.abcs import AtlasQuery
 from atlas.core import Atlas
 from atlas.utils.strings import INFO
 
@@ -13,6 +14,9 @@ cli_root = typer.Typer(no_args_is_help=True)
 info = typer.Typer()
 
 cli_root.add_typer(info, name="info")
+
+
+ATLAS = Atlas()
 
 
 @cli_root.callback()
@@ -49,7 +53,7 @@ def tables_command(
     """Get a list of what data can be retrieved by Atlas."""
     log.debug(f"Invoked tables command. Args: query: '{query}'")
 
-    raise NotImplementedError()
+    print(ATLAS.supported_paths)
 
 
 @cli_root.command("genquery")
@@ -78,9 +82,11 @@ def retrieve_command(
 
     # raise NotImplementedError()
 
-    atlas = Atlas()
-
-    atlas.fulfill_query()
+    ATLAS.fulfill_query(
+        AtlasQuery(
+            {"paths": ["tests::error", "tests::dummy_download2"], "filters": None}
+        )
+    )
 
 
 # This is just here to wrap (cli_root) in case we ever need to change its

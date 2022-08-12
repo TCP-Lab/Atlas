@@ -4,3 +4,7 @@ class MissingConcreteAttributeError(Exception):
 
 class InvalidQuery(Exception):
     pass
+
+
+class AtlasTestException(Exception):
+    pass
