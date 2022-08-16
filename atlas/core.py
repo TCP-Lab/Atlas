@@ -6,6 +6,7 @@ from multiprocessing import cpu_count
 from tqdm import tqdm
 
 import atlas.abcs as abcs
+from atlas import interfaces
 from atlas.interfaces import ALL_INTERFACES
 
 log = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ def run(x):
 
 
 class Atlas:
-    interfaces: list = ALL_INTERFACES
+    interfaces: list[abcs.AtlasInterface] = ALL_INTERFACES
 
     def fulfill_query(self, query: abcs.AtlasQuery):
         query_interfaces = []
@@ -34,6 +35,9 @@ class Atlas:
         cpus = cpu_count()
 
         log.info(f"Spawning process pool with {cpus} workers.")
+        log.warning(
+            f"The processing pool is not CTRL+C friendly. Use it with caution when killing Atlas."
+        )
         with concurrent.futures.ProcessPoolExecutor(
             cpus, initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),)
         ) as pool:
@@ -57,3 +61,25 @@ class Atlas:
                 paths.update({path: interface})
 
         return paths
+
+    @property
+    def loaded_interfaces(self):
+        """Retrieve a structure with the interfaces loaded by Atlas.
+
+        The structure is composed by an outer dictionary, with keys
+        equal to the interface types, and values dictionaries. The inner
+        dictionaries contain keys with the interface names, and values
+        the paths fulfilled by the interfaces.
+
+        This is intended to aid the building of menus.
+        """
+        # This is probably terribly inefficient, but there should not be many
+        # interfaces
+        interface_types = set([x.type for x in self.interfaces])
+        result = {type: {} for type in interface_types}
+        for type in interface_types:
+            for interface in self.interfaces:
+                if interface.type == type:
+                    result[type].update({interface.name: interface.paths_description})
+
+        return result

@@ -3,7 +3,10 @@ from pathlib import Path
 
 import colorama as c
 import typer
+import yaml
+from simple_term_menu import TerminalMenu
 
+from atlas import __version__
 from atlas.abcs import AtlasQuery
 from atlas.core import Atlas
 from atlas.utils.strings import INFO
@@ -44,6 +47,12 @@ def info_database_command():
     raise NotImplementedError()
 
 
+def generate_preview_from_interface_name(interface_name):
+    interfaces = {x.name: x for x in ATLAS.interfaces}
+
+    return interfaces[interface_name].paths_description
+
+
 @cli_root.command("tables")
 def tables_command(
     query: str = typer.Argument(
@@ -53,7 +62,7 @@ def tables_command(
     """Get a list of what data can be retrieved by Atlas."""
     log.debug(f"Invoked tables command. Args: query: '{query}'")
 
-    print(ATLAS.supported_paths)
+    raise NotImplementedError()
 
 
 @cli_root.command("genquery")
@@ -61,10 +70,82 @@ def genquery_command(
     target: Path = typer.Argument(..., help="Target path to save the query to")
 ):
     """Generate a query file with a variety of options."""
+    # Based on the example given in the simple_term_meu GitHub
+
     target = target.expanduser().resolve()
     log.debug(f"Invoked genquery command. Args: target: '{target}'")
 
-    raise NotImplementedError()
+    ## MENU STYLE
+    menu_cursor = "> "
+    menu_cursor_style = ("fg_green", "bold")
+    menu_style = ("standout",)
+    ##
+
+    # Make a menu with the interfaces and their supported paths. The menu is
+    # clickable.
+    interfaces = ATLAS.loaded_interfaces
+    interface_types = list(interfaces.keys())
+    interface_types.sort()
+
+    type_selection_menu = TerminalMenu(
+        interface_types,
+        title="Select a data type. Press Q or Esc to abort.",
+        menu_cursor=menu_cursor,
+        menu_cursor_style=menu_cursor_style,
+        menu_highlight_style=menu_style,
+        cycle_cursor=True,
+        clear_screen=True,
+    )
+
+    while True:
+        selection = type_selection_menu.show()
+        print(selection)
+        if selection is None:
+            raise typer.Abort()
+
+        selected_type = interface_types[selection]
+        possible_interfaces_names = list(interfaces[selected_type].keys())
+        possible_interfaces_names.sort()
+
+        interface_selection_menu = TerminalMenu(
+            possible_interfaces_names,
+            preview_command=generate_preview_from_interface_name,
+            title="Select what data you'd like to retrieve. Press Q or Esc to go back to the main menu.",
+            preview_title="Downloaded data preview",
+            multi_select=True,
+            multi_select_select_on_accept=False,
+            show_multi_select_hint=True,
+            menu_cursor=menu_cursor,
+            menu_cursor_style=menu_cursor_style,
+            menu_highlight_style=menu_style,
+            cycle_cursor=True,
+            clear_screen=True,
+        )
+
+        selections = interface_selection_menu.show()
+
+        if selections is not None:
+            break
+
+        # If we get here, we have to go back to the main menu
+
+    selected_names = [possible_interfaces_names[index] for index in selections]
+
+    # Save a YAML file with the selected options
+    if target.is_dir():
+        log.warn(f"{target} is a directory. Making a default query file instead.")
+        target /= "atlas_query.yaml"
+    with target.open("w+") as stream:
+        yaml.dump(
+            {
+                "type": selected_type,
+                "interfaces": selected_names,
+                "atlas_version": __version__,
+            },
+            stream,
+        )
+
+    log.info(f"Saved query in {target}. Ready to use `atlas retrieve`!")
 
 
 @cli_root.command("retrieve")

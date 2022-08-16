@@ -28,6 +28,9 @@ import logging
 from abc import ABC, abstractmethod
 from multiprocessing import current_process
 
+import pandas as pd
+from colorama import Fore
+
 log = logging.getLogger(__name__)
 
 
@@ -52,7 +55,7 @@ class AtlasDownloader(ABC):
 
 class AtlasProcessor(ABC):
     @abstractmethod
-    def __call__(self, name: str, melted_data):
+    def __call__(self, name: str, melted_data) -> pd.DataFrame:
         pass
 
     @property
@@ -66,18 +69,35 @@ class AtlasProcessor(ABC):
 
 
 class AtlasInterface(ABC):
+    type: str = "Undefined Type"
+    """The interface's data type
+
+    The interface type defines what type of data is retrieved, as well
+    as what interfaces are required for this interface to work. The interface
+    dependencies pivot around a single column, usually. For instance, data
+    regarding genes is pivoted on the 'Ensembl gene IDs' column."""
+    name: str = "Undefined Interface"
+    """An arbitrary name for the interface. Shows up in menus and progress bars."""
+
     downloader: AtlasDownloader
     processor: AtlasProcessor
-    name: str = "Undefined Interface"
 
-    paths: list[str]
-    # These are the paths that are supported by the interface. Checked
-    # by Atlas when fulfilling queries.
+    provided_cols: dict[str]
+    """Description of the columns of data provided by this interface.
+
+    Given as a dictionary of col_name: description. Used to check the output
+    of the processor and shown in menus.
+    """
 
     def run(self):
         try:
             raw_data = self.downloader.retrieve(name=self.name)
             processed_data = self.processor(name=self.name, melted_data=raw_data)
+
+            if not all(processed_data.columns in self.provided_cols.keys()):
+                log.warn(
+                    "The promised columns are not (all) present in the output dataframe. Ignoring this, hoping for the best."
+                )
 
             return processed_data
         except Exception as e:
@@ -85,8 +105,35 @@ class AtlasInterface(ABC):
             # thread. They will be re-raised there, if needed.
             return e
 
+    @property
+    def paths_description(self):
+        max_col_len = max([len(col) for col in self.provided_cols.keys()])
+
+        # A bit of padding
+        max_col_len += 2
+
+        result = []
+        for key, value in self.provided_cols.items():
+            # This is a bit convoluted as I'm lazy. First, I pad the string.
+            # Then I split it up, color it, and patch it back together.
+            # I hope noone will even use "¬" in a description or name.
+            fmt_key = f"{key}¬".ljust(max_col_len, "-")
+            fmt_result = f"{fmt_key}¬{value}"
+
+            fmt_result = fmt_result.split("¬")
+            fmt_result = " ".join(
+                [
+                    Fore.LIGHTGREEN_EX + fmt_result[0] + Fore.RESET,
+                    Fore.LIGHTBLACK_EX + fmt_result[1] + Fore.RESET,
+                    fmt_result[2],
+                ]
+            )
+
+            result.append(fmt_result)
+
+        return "\n".join(result)
+
 
 class AtlasQuery(ABC):
     def __init__(self, query: dict) -> None:
-        self.paths = query["paths"]
-        self.filters = query["filters"]
+        self.interfaces = query["interfaces"]
