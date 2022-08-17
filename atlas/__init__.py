@@ -5,10 +5,12 @@ default options. This is to crash early other that later if the user mistypes
 the options.
 """
 
+import collections.abc
 import importlib.resources as pkg_resources
 import logging
 import os
-from copy import copy
+from copy import deepcopy
+from functools import reduce
 from logging import StreamHandler
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -18,6 +20,7 @@ import yaml
 from colorama import Back, Fore, Style
 
 from atlas import resources
+from atlas.errors import UnsupportedOptionError
 
 __version__ = "0.1.0"
 __all__ = ["__version__", "OPTIONS"]
@@ -37,17 +40,16 @@ LEVELS = {
 }
 
 
-def parse_local_options(*args):
-    updated_defaults = copy(DEFAULT_OPTIONS)
-    for dict in args:
-        invalid_keys = [new_key not in DEFAULT_OPTIONS.keys() for new_key in dict]
-        if invalid_keys:
-            raise ValueError(
-                "Invalid local option(s) {}.".format(", ".join(invalid_keys))
-            )
-        updated_defaults.update(args)
-
-    return updated_defaults
+# Stolen from stackoverflow and modded
+def recursive_options_update(d, u):
+    for k, v in u.items():
+        if k not in d:
+            raise UnsupportedOptionError(f"Custom option {k} is not supported.")
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = recursive_options_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
 
 
 _possible_option_paths = [
@@ -63,7 +65,7 @@ for path in _possible_option_paths:
         continue
     with path.open("r") as file:
         _all_local_opts.append(yaml.safe_load(file))
-OPTIONS = parse_local_options(*_all_local_opts)
+OPTIONS = reduce(recursive_options_update, _all_local_opts, deepcopy(DEFAULT_OPTIONS))
 
 
 class ColorFormatter(logging.Formatter):

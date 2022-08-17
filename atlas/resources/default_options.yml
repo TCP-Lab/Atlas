@@ -1,6 +1,9 @@
-# Configuration file for bioTEA
+# Configuration file for Atlas
 
 logging:
   log_folder: "~/.atlas/logs/"
   console_log_level: "DEBUG"
   file_log_level: "DEBUG"
+
+debugging:
+  include_test_interfaces: false

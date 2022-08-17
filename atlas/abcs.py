@@ -30,6 +30,7 @@ from multiprocessing import current_process
 
 import pandas as pd
 from colorama import Fore
+from typer import Abort
 
 log = logging.getLogger(__name__)
 
@@ -136,4 +137,10 @@ class AtlasInterface(ABC):
 
 class AtlasQuery(ABC):
     def __init__(self, query: dict) -> None:
-        self.interfaces = query["interfaces"]
+        try:
+            self.interfaces = query["interfaces"]
+            self.type = query["type"]
+            self.version = query["atlas_version"]
+        except KeyError as e:
+            log.error(f"Could not find required key in query: {e}.")
+            raise Abort()

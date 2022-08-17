@@ -8,3 +8,7 @@ class InvalidQuery(Exception):
 
 class AtlasTestException(Exception):
     pass
+
+
+class UnsupportedOptionError(Exception):
+    pass

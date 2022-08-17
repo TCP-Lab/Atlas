@@ -99,7 +99,6 @@ def genquery_command(
 
     while True:
         selection = type_selection_menu.show()
-        print(selection)
         if selection is None:
             raise typer.Abort()
 
@@ -161,13 +160,22 @@ def retrieve_command(
         f"Invoked retrieve command. Args: target: '{target}', query_file: '{query_file}'"
     )
 
-    # raise NotImplementedError()
+    if not (query_file.exists() and query_file.is_file()):
+        log.error(f"{query_file} does not exists, or is not a file.")
+        typer.Abort()
 
-    ATLAS.fulfill_query(
-        AtlasQuery(
-            {"paths": ["tests::error", "tests::dummy_download2"], "filters": None}
+    if target.suffix != ".csv":
+        log.warning(
+            f"The target output file '{target}' does not end in .csv. Note that the output is always in .csv format."
         )
-    )
+
+    with query_file.open("r") as stream:
+        query = AtlasQuery(yaml.safe_load(stream))
+
+    output_data = ATLAS.fulfill_query(query)
+
+    with target.open("w+") as output_stream:
+        output_data.to_csv(output_stream)
 
 
 # This is just here to wrap (cli_root) in case we ever need to change its
@@ -187,3 +195,5 @@ def main():
         print(
             f"{c.Fore.RED}STOP{c.Fore.RESET} -- Fn '{c.Fore.MAGENTA}{fname}{c.Fore.RESET}' is not implemented yet."
         )
+
+    log.info("Atlas finished.")
