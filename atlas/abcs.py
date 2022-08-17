@@ -69,6 +69,11 @@ class AtlasProcessor(ABC):
         return process._identity[0]
 
 
+def contains_all(x: list, y: list) -> bool:
+    """Does list y contain all items in x and vice-versa?"""
+    return all([i in y for i in x]) and all([i in x for i in y])
+
+
 class AtlasInterface(ABC):
     type: str = "Undefined Type"
     """The interface's data type
@@ -95,9 +100,11 @@ class AtlasInterface(ABC):
             raw_data = self.downloader.retrieve(name=self.name)
             processed_data = self.processor(name=self.name, melted_data=raw_data)
 
-            if not all(processed_data.columns in self.provided_cols.keys()):
+            if not contains_all(
+                list(processed_data.columns), list(self.provided_cols.keys())
+            ):
                 log.warn(
-                    "The promised columns are not (all) present in the output dataframe. Ignoring this, hoping for the best."
+                    "The promised columns are not identical to the retrieved ones. Ignoring this, hoping for the best."
                 )
 
             return processed_data

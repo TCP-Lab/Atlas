@@ -32,149 +32,22 @@
    developing the tool.
 """
 # TODO: Add some way to test point n. 5 above in automated deployment tests.
-import time
 from functools import partial
-from random import randint, randrange
 
-import pandas as pd
 from tqdm import tqdm
 
-from atlas import OPTIONS, abcs
-from atlas.errors import AtlasTestException
+from atlas import OPTIONS
+from atlas.test_interfaces import ALL_TEST_INTERFACES
 
 down_tqdm = partial(tqdm, leave=False, colour="BLUE")
 process_tqdm = partial(tqdm, leave=False, colour="GREEN")
 
 
-class TestDownloader(abcs.AtlasDownloader):
-    def __init__(
-        self, returned_data={"ids": ["a", "b", "c"], "values": [1, 2, 3]}
-    ) -> None:
-        self.returned_data = returned_data
-
-    def retrieve(self, name):
-        test_time = randint(5, 15)
-
-        for _ in down_tqdm(range(test_time), f"{name}", position=self.worker_id - 1):
-            time.sleep(randrange(20, 150, 1) / 100)
-
-        return self.returned_data
-
-
-class TestProcessor(abcs.AtlasProcessor):
-    def __call__(self, name, melted_data):
-        test_time = randint(5, 15)
-
-        for _ in tqdm(
-            range(test_time),
-            f"{name}",
-            position=self.worker_id - 1,
-            leave=False,
-            colour="GREEN",
-        ):
-            time.sleep(randrange(20, 150, 1) / 100)
-
-        return pd.DataFrame(melted_data)
-
-
-class TestProcessorThatErrors(abcs.AtlasProcessor):
-    def __call__(self, name, melted_data):
-        test_time = randint(5, 15)
-
-        for x in tqdm(
-            range(test_time),
-            f"{name}",
-            position=self.worker_id - 1,
-            leave=False,
-            colour="GREEN",
-        ):
-            time.sleep(randrange(20, 150, 1) / 100)
-            if x == 3:
-                raise AtlasTestException()
-
-
-class BaseTestInterface(abcs.AtlasInterface):
-    """A normal interface, but `run` is much simpler for testing purposes."""
-
-    def run(self):
-        try:
-            raw_data = self.downloader.retrieve(name=self.name)
-            processed_data = self.processor(name=self.name, melted_data=raw_data)
-
-            return processed_data
-        except Exception as e:
-            # Catch any errors happening in the workers, and give them to the main
-            # thread. They will be re-raised there, if needed.
-            return e
-
-
-class TestInterface0(BaseTestInterface):
-    type = "Type 1 tests"
-    name = "Test Interface 0"
-
-    downloader: abcs.AtlasDownloader = TestDownloader({"Col1": [1, 2, 3, 4]})
-    processor: abcs.AtlasProcessor = TestProcessor()
-
-    provided_cols = {"Col1": "A test column, with a nice description."}
-
-
-class TestInterface1(BaseTestInterface):
-    type = "Type 2 tests"
-    name = "Test Interface 1"
-
-    downloader: abcs.AtlasDownloader = TestDownloader(
-        {"Col 1": [2, 4, 5], "Long Column name, 2": ["a", "b", "c"]}
-    )
-    processor: abcs.AtlasProcessor = TestProcessor()
-
-    provided_cols = {
-        "Col1": "A test column, with a nice description.",
-        "Long Column name, 2": "A test column, with a very long name.",
-    }
-
-
-class TestInterface2(BaseTestInterface):
-    type = "Type 2 tests"
-    name = "Test Interface 2"
-
-    downloader: abcs.AtlasDownloader = TestDownloader(
-        {
-            "Col 1": [2, 6, 5],
-            "Long Column name, but different": ["f", "h", "d"],
-            "A third column": [1.23, 0.2, 0],
-        }
-    )
-    processor: abcs.AtlasProcessor = TestProcessor()
-
-    provided_cols = {
-        "Col1": "A test column, with a nice description.",
-        "Long Column name, but different": "A test column, with a very, very long name.",
-        "A third column": "That is just a test column, just like the others.",
-    }
-
-
-class TestInterfaceThatErrors(BaseTestInterface):
-    type = "Erroring Test interfaces"
-    name = "Error Test Interface"
-
-    downloader: abcs.AtlasDownloader = TestDownloader()
-    processor: abcs.AtlasProcessor = TestProcessorThatErrors()
-
-    provided_cols = {"No columns": "Since selecting this will make Atlas Error."}
-
-
 ###############################################################################
 # Specify which interfaces are part of Atlas.
-ALL_INTERFACES = [
-    TestInterface0(),
-    TestInterface1(),
-    TestInterface2(),
-    TestInterfaceThatErrors(),
-]
+ALL_INTERFACES = []
 
-# Remove test interfaces if we are not in debug mode
-if not OPTIONS["debugging"]["include_test_interfaces"]:
-    ALL_INTERFACES = [
-        x for x in ALL_INTERFACES if not issubclass(type(x), BaseTestInterface)
-    ]
+# Add test interfaces if we are in debug mode
+if OPTIONS["debugging"]["include_test_interfaces"]:
+    ALL_INTERFACES.extend(ALL_TEST_INTERFACES)
 ###############################################################################

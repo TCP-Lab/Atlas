@@ -26,12 +26,12 @@ class Atlas:
 
     def test_query(self, query: abcs.AtlasQuery) -> True:
         if query.type not in [x.type for x in self.interfaces]:
-            log.error("Tested query is invalid: wrong type.")
+            log.error("Tested query is invalid: unsupported type.")
             raise InvalidQuery
 
         possible_names = [x.name for x in self.interfaces]
         if not all([x in possible_names for x in query.interfaces]):
-            log.error("Tested query is invalid: wrong interfaces.")
+            log.error("Tested query is invalid: unsupported interface(s).")
             raise InvalidQuery
 
         # Test that all interfaces have the same type, and it is the one specified.
