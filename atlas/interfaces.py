@@ -22,30 +22,156 @@
 5. It is YOUR RESPONSIBILITY to ensure the following:
     - The interface names MUST be unique. This is because the queries rely on
       the interface names to be fulfilled.
-    - Interfaces with the same type MUST be return ONE, and ONLY ONE, column
-      in common. Atlas will trigger a warning (not an error) if there are
-      multiple columns in common.
     - Interfaces MUST fulfill their `.provided_cols` promise. Atlas will trigger
       a warning (not an error) if this is not the case.
 6. Interfaces not added to the ALL_INTERFACES variable will not be loaded by
    Atlas. This is a good way to remove test interfaces from Atlas while not
    developing the tool.
 """
-# TODO: Add some way to test point n. 5 above in automated deployment tests.
-from functools import partial
+import json
+import logging
 
+# TODO: Add some way to test point n. 5 above in automated deployment tests.
+from functools import partial, reduce
+
+import pandas as pd
 from tqdm import tqdm
 
-from atlas import OPTIONS
+from atlas import OPTIONS, abcs
 from atlas.test_interfaces import ALL_TEST_INTERFACES
+from atlas.utils.constants import TCGA_CANCER_TYPES
+from atlas.utils.tools import download_as_bytes_with_progress
+
+log = logging.getLogger(__name__)
+
+# Specify which interfaces are part of Atlas.
+ALL_INTERFACES = []
 
 down_tqdm = partial(tqdm, leave=False, colour="BLUE")
 process_tqdm = partial(tqdm, leave=False, colour="GREEN")
 
+################################################################################
+##########################   TCGA METADATA    ##################################
+################################################################################
+
+
+class TCGAMetadataDownloader(abcs.AtlasDownloader):
+    cases_endpt = "https://api.gdc.cancer.gov/cases/"
+
+    def __init__(self, cancer_type):
+        self.cancer_type = cancer_type
+        self.project_id = f"TCGA-{cancer_type}"
+
+    def retrieve(self, name: str):
+        filters = {
+            "op": "in",
+            "content": {"field": "project.project_id", "value": [self.project_id]},
+        }
+
+        result = {}
+        for data_type in ("demographic", "diagnoses", "exposures"):
+            log.debug(f"Retrieving data for {self.cancer_type} - {data_type}")
+            params = {
+                "filters": json.dumps(filters),
+                "format": "JSON",
+                "expand": data_type,
+                # This is the max request size
+                "size": str(100_000_000),
+            }
+
+            log.debug("Decoding response for {self.cancer_type} - {data_type}...")
+            response = download_as_bytes_with_progress(
+                self.cases_endpt,
+                params=params,
+                tqdm_class=partial(
+                    down_tqdm,
+                    position=self.worker_id - 1,
+                    desc=f"{self.cancer_type} - {data_type}",
+                ),
+            )
+
+            result[data_type] = json.loads(response.decode("UTF-8"))["data"]["hits"]
+
+        log.debug(f"Done retrieving data for {self.cancer_type}.")
+        return result
+
+
+class TCGAMetadataProcessor(abcs.AtlasProcessor):
+    def __call__(self, name: str, melted_data) -> pd.DataFrame:
+        # The melted data is the three responses all bundled together.
+        # They need to be cleaned and merged to just one Df.
+        dataframes = []
+        for data_type in ("demographic", "diagnoses", "exposures"):
+            log.info("Detecting missing patient data...")
+            missing_diagnoses = []
+            cases = []
+            for patient in melted_data[data_type]:
+                clean_data = {}
+                try:
+                    if data_type != "demographic":
+                        # Diagnoses and exposures are in a list of 1 element, so
+                        # I'm unlisting them here (the [0])
+                        clean_data.update(patient[data_type][0])
+                    else:
+                        # Demographic is just a dictionary, no need to unlist
+                        clean_data.update(patient[data_type])
+                except KeyError:
+                    missing_diagnoses.append(patient["submitter_id"])
+                # Add the relevant patient ID to the cleaned data for merging
+                clean_data.update({"submitter_id": patient["submitter_id"]})
+                cases.append(clean_data)
+            # Warn the user if something went wrong when retrieving the data
+            if missing_diagnoses:
+                str_missing_diagnoses = ", ".join(missing_diagnoses)
+                log.warning(
+                    f"Found one or more missing {data_type}: {str_missing_diagnoses}"
+                )
+            # Delete the variables "updated_datetime", "created_datetime" and "state". They are basically useless.
+            frame = pd.DataFrame(cases)
+            log.debug("Deleting useless columns...")
+            frame.drop(
+                columns=["status", "updated_datetime", "created_datetime"],
+                inplace=True,
+                errors="ignore",
+            )
+            # Finally, add the dataframe to the dataframe list
+            dataframes.append(frame)
+
+        log.debug("Merging frames...")
+        merged_frame = reduce(
+            lambda x, y: pd.merge(x, y, on="submitter_id", how="outer"),
+            process_tqdm(dataframes, position=self.worker_id - 1, desc=f"{name}"),
+        )
+
+        log.debug("Standardizing TCGA notations...")
+        merged_frame.replace(
+            ["", "not reported", "Not Reported", "NA", "na", "Na"], pd.NA, inplace=True
+        )
+        merged_frame.replace(["No", "NO", "no"], False, inplace=True)
+        merged_frame.replace(["Yes", "yes", "YES"], True, inplace=True)
+
+        log.debug("Dropping empty columns...")
+        merged_frame.dropna(axis=1, how="all", inplace=True)
+        log.info(f"Returning data of type {type(merged_frame)}")
+        return merged_frame
+
+
+tcga_metadata_interfaces = []
+for cancer_type in TCGA_CANCER_TYPES:
+    # There are many cancer types, so we do this in a loop, not with
+    # individual classes
+    interface = abcs.AtlasInterface()
+    interface.type = "TCGA Clinical Metadata"
+    interface.name = f"TCGA-{cancer_type} Metadata"
+    interface.downloader = TCGAMetadataDownloader(cancer_type)
+    interface.provided_cols = None  # TODO: Fillme
+    interface.processor = TCGAMetadataProcessor()
+    interface.merge_col = "submitter_id"
+    tcga_metadata_interfaces.append(interface)
+
+ALL_INTERFACES.extend(tcga_metadata_interfaces)
 
 ###############################################################################
-# Specify which interfaces are part of Atlas.
-ALL_INTERFACES = []
 
 # Add test interfaces if we are in debug mode
 if OPTIONS["debugging"]["include_test_interfaces"]:

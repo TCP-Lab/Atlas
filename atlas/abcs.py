@@ -100,7 +100,7 @@ class AtlasInterface(ABC):
             raw_data = self.downloader.retrieve(name=self.name)
             processed_data = self.processor(name=self.name, melted_data=raw_data)
 
-            if not contains_all(
+            if self.provided_cols is not None and not contains_all(
                 list(processed_data.columns), list(self.provided_cols.keys())
             ):
                 log.warn(
@@ -115,6 +115,9 @@ class AtlasInterface(ABC):
 
     @property
     def paths_description(self):
+        if self.provided_cols is None:
+            return "No columns defined."
+
         max_col_len = max([len(col) for col in self.provided_cols.keys()])
 
         # A bit of padding

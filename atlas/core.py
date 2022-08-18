@@ -11,6 +11,7 @@ import atlas.abcs as abcs
 from atlas import __version__
 from atlas.errors import InvalidQuery
 from atlas.interfaces import ALL_INTERFACES
+from atlas.utils.tools import handler_suppressed
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,10 @@ class Atlas:
                 "Not all query interfaces have the same type. Merging may fail."
             )
 
+        if len(set([x.merge_col for x in query_interfaces])) != 1:
+            log.error("Not all selected interfaces have the same merge col. Aborting.")
+            raise InvalidQuery
+
         if query.version != __version__:
             log.warn(
                 f"The query vas generated in version {query.version}, "
@@ -59,6 +64,7 @@ class Atlas:
         # We are sure that the query is fulfillable, here.
 
         query_interfaces = [x for x in self.interfaces if x.name in query.interfaces]
+        merge_col = query_interfaces[0].merge_col
 
         cpus = cpu_count()
 
@@ -69,7 +75,9 @@ class Atlas:
         with concurrent.futures.ProcessPoolExecutor(
             cpus, initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),)
         ) as pool:
-            data: list[pd.DataFrame] = list(pool.map(run, query_interfaces))
+            # Temporarily disable stream logging
+            with handler_suppressed(logging.getLogger("atlas").handlers[1]):
+                data: list[pd.DataFrame] = list(pool.map(run, query_interfaces))
 
         # Handle errors coming from child processes.
         for i, item in enumerate(data):
@@ -83,45 +91,19 @@ class Atlas:
 
         log.info("Data was retrived and processed. Attempting to collapse it.")
 
-        # I think this is pretty bad, maybe counters would be better? But
-        # I am tired and sleepy.
-        log.debug("Detecting duplicated columns...")
-        all_cols = []
-        duplicate_cols = []
-        for dataframe in data:
-            for col in dataframe.columns:
-                if col in all_cols and col not in duplicate_cols:
-                    log.debug(f"Detected col '{col}' as duplicated.")
-                    duplicate_cols.append(col)
-                else:
-                    all_cols.append(col)
-
-        if not duplicate_cols:
-            log.error(
-                f"No pivot columns found. Dumping dataframe cols: {' --- '.join(dataframe.columns)}."
-            )
-            raise Abort()
-
-        log.debug("Finding pivot column...")
-        pivot_col = None
-        for duplicate_col in duplicate_cols:
-            if not all([duplicate_col in x.columns for x in data]):
-                log.warn(
-                    f"Found a duplicate col ({duplicate_col}) which is not shared between all frames. This should not happen, and might lead to data loss. Dumping dataframe cols: {' --- '.join(dataframe.columns)}"
-                )
-            elif pivot_col is None:
-                pivot_col = duplicate_col
-            else:
-                log.error(
-                    f"Found two pivot columns! First: {pivot_col}, second: {duplicate_col}. Aborting."
-                )
-                raise Abort()
-
-        log.info(f"Pivot column detected: '{pivot_col}'.")
-
         log.info("Performing merge...")
+
+        def merge_or_concat(x: pd.DataFrame, y: pd.DataFrame) -> pd.DataFrame:
+            """Merge or concatenate two dataframes"""
+            try:
+                merged = pd.merge(x, y, how="outer")
+            except ValueError:
+                merged = pd.concat([x, y], ignore_index=True, verify_integrity=True)
+
+            return merged
+
         merged = reduce(
-            lambda left, right: pd.merge(left, right, on=pivot_col, how="outer"),
+            merge_or_concat,
             tqdm(data, desc="Merging progress"),
         )
 

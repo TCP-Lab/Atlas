@@ -1,3 +1,4 @@
+import logging
 import time
 from functools import partial
 from random import randint, randrange
@@ -11,6 +12,8 @@ from atlas.errors import AtlasTestException
 down_tqdm = partial(tqdm, leave=False, colour="BLUE")
 process_tqdm = partial(tqdm, leave=False, colour="GREEN")
 
+log = logging.getLogger(__name__)
+
 
 class TestDownloader(abcs.AtlasDownloader):
     def __init__(
@@ -23,6 +26,8 @@ class TestDownloader(abcs.AtlasDownloader):
 
         for _ in down_tqdm(range(test_time), f"{name}", position=self.worker_id - 1):
             time.sleep(randrange(20, 150, 1) / 100)
+
+        log.info("This should be suppressed in the stream log.")
 
         return self.returned_data
 
@@ -39,6 +44,8 @@ class TestProcessor(abcs.AtlasProcessor):
             colour="GREEN",
         ):
             time.sleep(randrange(20, 150, 1) / 100)
+
+        log.info("This should be suppressed in the stream log.")
 
         return pd.DataFrame(melted_data)
 

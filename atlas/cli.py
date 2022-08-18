@@ -109,9 +109,10 @@ def genquery_command(
         interface_selection_menu = TerminalMenu(
             possible_interfaces_names,
             preview_command=generate_preview_from_interface_name,
-            title="Select what data you'd like to retrieve. Press Q or Esc to go back to the main menu.",
+            title="Select items to retrieve. Selecting no items will select all of them, instead. Press Q/Esc to go back.",
             preview_title="Downloaded data preview",
             multi_select=True,
+            multi_select_empty_ok=True,
             multi_select_select_on_accept=False,
             show_multi_select_hint=True,
             menu_cursor=menu_cursor,
@@ -128,7 +129,11 @@ def genquery_command(
 
         # If we get here, we have to go back to the main menu
 
-    selected_names = [possible_interfaces_names[index] for index in selections]
+    # If they selected nothing, they select everything
+    if len(selections) == 0:
+        selected_names = possible_interfaces_names
+    else:
+        selected_names = [possible_interfaces_names[index] for index in selections]
 
     # Save a YAML file with the selected options
     if target.is_dir():
