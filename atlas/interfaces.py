@@ -85,7 +85,7 @@ class TCGAMetadataDownloader(abcs.AtlasDownloader):
                 params=params,
                 tqdm_class=partial(
                     down_tqdm,
-                    position=self.worker_id - 1,
+                    position=self.worker_id,
                     desc=f"{self.cancer_type} - {data_type}",
                 ),
             )
@@ -97,11 +97,18 @@ class TCGAMetadataDownloader(abcs.AtlasDownloader):
 
 
 class TCGAMetadataProcessor(abcs.AtlasProcessor):
+    def __init__(self, cancer_type):
+        self.cancer_type = cancer_type
+
     def __call__(self, name: str, melted_data) -> pd.DataFrame:
         # The melted data is the three responses all bundled together.
         # They need to be cleaned and merged to just one Df.
         dataframes = []
-        for data_type in ("demographic", "diagnoses", "exposures"):
+        for data_type in process_tqdm(
+            ("demographic", "diagnoses", "exposures"),
+            position=self.worker_id,
+            desc=f"Process {name}",
+        ):
             log.info("Detecting missing patient data...")
             missing_diagnoses = []
             cases = []
@@ -130,7 +137,7 @@ class TCGAMetadataProcessor(abcs.AtlasProcessor):
             frame = pd.DataFrame(cases)
             log.debug("Deleting useless columns...")
             frame.drop(
-                columns=["status", "updated_datetime", "created_datetime"],
+                columns=["state", "updated_datetime", "created_datetime"],
                 inplace=True,
                 errors="ignore",
             )
@@ -145,10 +152,13 @@ class TCGAMetadataProcessor(abcs.AtlasProcessor):
 
         log.debug("Standardizing TCGA notations...")
         merged_frame.replace(
-            ["", "not reported", "Not Reported", "NA", "na", "Na"], pd.NA, inplace=True
+            ["", "not reported", "Not Reported", "NA", "na", "Na"], None, inplace=True
         )
         merged_frame.replace(["No", "NO", "no"], False, inplace=True)
         merged_frame.replace(["Yes", "yes", "YES"], True, inplace=True)
+
+        log.debug("Adding TCGA ID column")
+        merged_frame["tumor_id"] = self.cancer_type
 
         log.debug("Dropping empty columns...")
         merged_frame.dropna(axis=1, how="all", inplace=True)
@@ -165,7 +175,7 @@ for cancer_type in TCGA_CANCER_TYPES:
     interface.name = f"TCGA-{cancer_type} Metadata"
     interface.downloader = TCGAMetadataDownloader(cancer_type)
     interface.provided_cols = None  # TODO: Fillme
-    interface.processor = TCGAMetadataProcessor()
+    interface.processor = TCGAMetadataProcessor(cancer_type)
     interface.merge_col = "submitter_id"
     tcga_metadata_interfaces.append(interface)
 

@@ -27,6 +27,7 @@ and save it out as the correct output formats.
 import logging
 from abc import ABC, abstractmethod
 from multiprocessing import current_process
+from typing import Optional
 
 import pandas as pd
 from colorama import Fore
@@ -88,12 +89,16 @@ class AtlasInterface(ABC):
     downloader: AtlasDownloader
     processor: AtlasProcessor
 
-    provided_cols: dict[str]
+    provided_cols: Optional[dict[str]]
     """Description of the columns of data provided by this interface.
 
     Given as a dictionary of col_name: description. Used to check the output
-    of the processor and shown in menus.
+    of the processor and shown in menus. If None, will print out that no
+    specific columns are defined.
     """
+
+    extra_args: Optional[dict] = None
+    """Extra arguments to pass to the downloader and processor"""
 
     def run(self):
         try:

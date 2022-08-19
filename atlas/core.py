@@ -77,7 +77,16 @@ class Atlas:
         ) as pool:
             # Temporarily disable stream logging
             with handler_suppressed(logging.getLogger("atlas").handlers[1]):
-                data: list[pd.DataFrame] = list(pool.map(run, query_interfaces))
+                data: list[pd.DataFrame] = list(
+                    tqdm(
+                        pool.map(run, query_interfaces),
+                        position=0,
+                        leave=False,
+                        total=len(query_interfaces),
+                        desc="Overall Completion",
+                        colour="GREEN",
+                    )
+                )
 
         # Handle errors coming from child processes.
         for i, item in enumerate(data):
@@ -96,9 +105,11 @@ class Atlas:
         def merge_or_concat(x: pd.DataFrame, y: pd.DataFrame) -> pd.DataFrame:
             """Merge or concatenate two dataframes"""
             try:
-                merged = pd.merge(x, y, how="outer")
+                merged = pd.merge(x, y, how="outer", validate="one_to_one", copy=False)
             except ValueError:
-                merged = pd.concat([x, y], ignore_index=True, verify_integrity=True)
+                merged = pd.concat(
+                    [x, y], ignore_index=True, verify_integrity=True, copy=False
+                )
 
             return merged
 

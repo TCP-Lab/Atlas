@@ -24,7 +24,7 @@ class TestDownloader(abcs.AtlasDownloader):
     def retrieve(self, name):
         test_time = randint(5, 15)
 
-        for _ in down_tqdm(range(test_time), f"{name}", position=self.worker_id - 1):
+        for _ in down_tqdm(range(test_time), f"{name}", position=self.worker_id):
             time.sleep(randrange(20, 150, 1) / 100)
 
         log.info("This should be suppressed in the stream log.")
