@@ -6,8 +6,8 @@ from random import randint, randrange
 import pandas as pd
 from tqdm import tqdm
 
-from atlas import abcs
-from atlas.errors import AtlasTestException
+from . import abcs
+from .errors import AtlasTestException
 
 down_tqdm = partial(tqdm, leave=False, colour="BLUE")
 process_tqdm = partial(tqdm, leave=False, colour="GREEN")

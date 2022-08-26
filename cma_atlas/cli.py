@@ -6,10 +6,10 @@ import typer
 import yaml
 from simple_term_menu import TerminalMenu
 
-from atlas import __version__
-from atlas.abcs import AtlasQuery
-from atlas.core import Atlas
-from atlas.utils.strings import INFO
+from cma_atlas import __version__
+from cma_atlas.abcs import AtlasQuery
+from cma_atlas.core import Atlas
+from cma_atlas.utils.strings import INFO
 
 log = logging.getLogger(__name__)
 

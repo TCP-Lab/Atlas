@@ -37,10 +37,10 @@ from functools import partial, reduce
 import pandas as pd
 from tqdm import tqdm
 
-from atlas import OPTIONS, abcs
-from atlas.test_interfaces import ALL_TEST_INTERFACES
-from atlas.utils.constants import TCGA_CANCER_TYPES
-from atlas.utils.tools import download_as_bytes_with_progress
+from cma_atlas import OPTIONS, abcs
+from cma_atlas.test_interfaces import ALL_TEST_INTERFACES
+from cma_atlas.utils.constants import TCGA_CANCER_TYPES
+from cma_atlas.utils.tools import download_as_bytes_with_progress
 
 log = logging.getLogger(__name__)
 

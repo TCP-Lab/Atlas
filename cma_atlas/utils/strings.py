@@ -3,7 +3,7 @@ from itertools import zip_longest
 
 import colorama as c
 
-from atlas import __version__
+from cma_atlas import __version__
 
 # 7-bit C1 ANSI sequences
 ansi_escape = re.compile(

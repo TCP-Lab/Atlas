@@ -7,11 +7,11 @@ import pandas as pd
 from tqdm import tqdm
 from typer import Abort
 
-import atlas.abcs as abcs
-from atlas import __version__
-from atlas.errors import InvalidQuery
-from atlas.interfaces import ALL_INTERFACES
-from atlas.utils.tools import handler_suppressed
+from cma_atlas import __version__
+from cma_atlas import abcs as abcs
+from cma_atlas.errors import InvalidQuery
+from cma_atlas.interfaces import ALL_INTERFACES
+from cma_atlas.utils.tools import handler_suppressed
 
 log = logging.getLogger(__name__)
 
