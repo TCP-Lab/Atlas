@@ -22,7 +22,7 @@ from colorama import Back, Fore, Style
 from atlas import resources
 from atlas.errors import UnsupportedOptionError
 
-__version__ = "0.1.0"
+__version__ = "0.1.0a1"
 __all__ = ["__version__", "OPTIONS"]
 
 colorama.init(autoreset=True)
