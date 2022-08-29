@@ -1,3 +1,4 @@
+"""This module has test interfaces useful when debugging."""
 import logging
 import time
 from functools import partial

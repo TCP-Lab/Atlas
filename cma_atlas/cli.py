@@ -24,6 +24,7 @@ ATLAS = Atlas()
 
 @cli_root.callback()
 def context_handler():
+    """Ran on every call of every command."""
     log.debug(f"Starting Atlas.")
 
 
@@ -82,7 +83,7 @@ def genquery_command(
     ##
 
     # Make a menu with the interfaces and their supported paths. The menu is
-    # clickable.
+    # traversable in an interactive way.
     interfaces = ATLAS.loaded_interfaces
     interface_types = list(interfaces.keys())
     interface_types.sort()
@@ -129,11 +130,7 @@ def genquery_command(
 
         # If we get here, we have to go back to the main menu
 
-    # If they selected nothing, they select everything
-    if len(selections) == 0:
-        selected_names = possible_interfaces_names
-    else:
-        selected_names = [possible_interfaces_names[index] for index in selections]
+    selected_names = [possible_interfaces_names[index] for index in selections]
 
     # Save a YAML file with the selected options
     if target.is_dir():
@@ -184,7 +181,7 @@ def retrieve_command(
 
 
 # This is just here to wrap (cli_root) in case we ever need to change its
-# behavior, like when we are developing.
+# behavior, like while we are developing.
 def main():
     import inspect
 

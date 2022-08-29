@@ -1,3 +1,4 @@
+"""All the TCGA cancer types, in no particular order."""
 TCGA_CANCER_TYPES = (
     "LAML",
     "ACC",

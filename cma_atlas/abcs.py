@@ -37,6 +37,13 @@ log = logging.getLogger(__name__)
 
 
 class AtlasDownloader(ABC):
+    """The abstract class that all downloaders have to inherit from.
+
+    Only needs the `retriever` method to be overridden.
+
+    Provides the `worker_id` property.
+    """
+
     @abstractmethod
     def retrieve(self, name: str):
         """Download from the remote repository what we need to download
@@ -47,6 +54,10 @@ class AtlasDownloader(ABC):
 
     @property
     def worker_id(self):
+        """The worker ID of the process the downloader is executed in.
+
+        If asked in the main process, raises a warning and returns 0.
+        """
         process = current_process()
         if process.name == "MainProcess":
             log.warning("A processor asked for the worker ID in the main process.")
@@ -56,12 +67,23 @@ class AtlasDownloader(ABC):
 
 
 class AtlasProcessor(ABC):
+    """The abstract class that all downloaders have to inherit from.
+
+    Only needs the `__call__` method to be overridden.
+
+    Provides the `worker_id` property.
+    """
+
     @abstractmethod
     def __call__(self, name: str, melted_data) -> pd.DataFrame:
         pass
 
     @property
     def worker_id(self):
+        """The worker ID of the process the downloader is executed in.
+
+        If asked in the main process, raises a warning and returns 0.
+        """
         process = current_process()
         if process.name == "MainProcess":
             log.warning("A processor asked for the worker ID in the main process.")
@@ -76,13 +98,22 @@ def contains_all(x: list, y: list) -> bool:
 
 
 class AtlasInterface(ABC):
+    """Represents an interface to some data.
+
+    Bundles together a downloader and a processor, so the data can be
+    retrieved and digested to a pandas dataframe.
+
+    Atlas uses these interfaces to get data to fuse together to fulfill queries.
+    """
+
     type: str = "Undefined Type"
-    """The interface's data type
+    """The interface's data type.
 
     The interface type defines what type of data is retrieved, as well
     as what interfaces are required for this interface to work. The interface
     dependencies pivot around a single column, usually. For instance, data
     regarding genes is pivoted on the 'Ensembl gene IDs' column."""
+
     name: str = "Undefined Interface"
     """An arbitrary name for the interface. Shows up in menus and progress bars."""
 
@@ -97,10 +128,16 @@ class AtlasInterface(ABC):
     specific columns are defined.
     """
 
-    extra_args: Optional[dict] = None
-    """Extra arguments to pass to the downloader and processor"""
-
     def run(self):
+        """Run the interface.
+
+        Runs the downloader and then the processor on the downloaded data.
+        Runs some weak checks that the promised cols have been found, but does
+        not enforce them.
+
+        Returns:
+            pd.DataFrame: The output of the processor.
+        """
         try:
             raw_data = self.downloader.retrieve(name=self.name)
             processed_data = self.processor(name=self.name, melted_data=raw_data)
@@ -120,6 +157,7 @@ class AtlasInterface(ABC):
 
     @property
     def paths_description(self):
+        """Get a nicely printable representation of the columns this interface provides."""
         if self.provided_cols is None:
             return "No columns defined."
 
@@ -151,6 +189,11 @@ class AtlasInterface(ABC):
 
 
 class AtlasQuery(ABC):
+    """Represents an Atlas Query.
+
+    Crashes if the input query cannot be unpacked.
+    """
+
     def __init__(self, query: dict) -> None:
         try:
             self.interfaces = query["interfaces"]

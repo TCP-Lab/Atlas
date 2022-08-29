@@ -56,6 +56,11 @@ process_tqdm = partial(tqdm, leave=False, colour="GREEN")
 
 
 class TCGAMetadataDownloader(abcs.AtlasDownloader):
+    """A downloader for the TCGA metadata.
+
+    Downloads data for a specific cancer type.
+    """
+
     cases_endpt = "https://api.gdc.cancer.gov/cases/"
 
     def __init__(self, cancer_type):
@@ -166,10 +171,11 @@ class TCGAMetadataProcessor(abcs.AtlasProcessor):
         return merged_frame
 
 
+# There are many cancer types, so we do this in a loop, not with individual
+# classes. Therefore, we do not make a custom AtlasInterface, but we make
+# individually-customized clones of the generic one.
 tcga_metadata_interfaces = []
 for cancer_type in TCGA_CANCER_TYPES:
-    # There are many cancer types, so we do this in a loop, not with
-    # individual classes
     interface = abcs.AtlasInterface()
     interface.type = "TCGA Clinical Metadata"
     interface.name = f"TCGA-{cancer_type} Metadata"

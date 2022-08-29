@@ -22,11 +22,42 @@ ansi_escape = re.compile(
 )
 
 
-def strip_colors(string):
+def strip_colors(string: str) -> str:
+    """Remove all colors from a string.
+
+    Args:
+        string (str): The string to strip colors from.
+
+    Returns:
+        str: The string without colors.
+    """
     return ansi_escape.sub("", string)
 
 
-def combine_linewise(a, b, padding="", strip=False, align_bottom=False, fix_len=True):
+def combine_linewise(
+    a: str,
+    b: str,
+    padding: str = "",
+    strip: bool = False,
+    align_bottom: bool = False,
+    fix_len: bool = True,
+) -> str:
+    """Combine two long strings line-wise.
+
+    This is used to combine two paragraphs line by line, optionally padding them
+    with some other string.
+
+    Args:
+        a (str): The paragraph on the left
+        b (str): The paragraph on the rigth
+        padding (str, optional): The padding string between each line. Defaults to "".
+        strip (bool, optional): Remove whitespace around each line? Defaults to False.
+        align_bottom (bool, optional): Align the paragraphs on the bottom instead of on the top? Defaults to False.
+        fix_len (bool, optional): Pads the left paragraphs with spaces to have the right paragraph be flush. Defaults to True.
+
+    Returns:
+        str: The two joined paragraphs as a single string.
+    """
     lines_a = a.split("\n")
     lines_b = b.split("\n")
 
@@ -57,7 +88,16 @@ def combine_linewise(a, b, padding="", strip=False, align_bottom=False, fix_len=
     return "\n".join(result)
 
 
-def make_square(logo, side="left"):
+def make_square(logo: str, side="left") -> str:
+    """Pad a paragraph with spaces to make it a flush square.
+
+    Args:
+        logo (str): The paragraph to pad.
+        side (str, optional): Either "left" or "rigth". The side to pad. Defaults to "left".
+
+    Returns:
+        str: The padded paragraph.
+    """
     assert side in ["left", "right"]
     lines = logo.split("\n")
     longest = max([len(strip_colors(x)) for x in lines])
@@ -76,7 +116,16 @@ def make_square(logo, side="left"):
 
 def break_long_lines(text: str, max_len: int = 80) -> str:
     """This breaks very long lines in `text` to `max_len`.
+
     Only breaks at spaces.
+    Warning: Left alignment is broken when splitting lines.
+
+    Args:
+        text (str): The text to split.
+        max_len (int): The max length of each line before splitting.
+
+    Returns:
+        str: The string, with added newlines where it needs to be split.
     """
     lines = text.split("\n")
     new_lines = []

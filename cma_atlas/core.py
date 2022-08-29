@@ -26,6 +26,18 @@ class Atlas:
     interfaces: list[abcs.AtlasInterface] = ALL_INTERFACES
 
     def test_query(self, query: abcs.AtlasQuery) -> True:
+        """Test if a given query can be fulfilled by this Atlas instance.
+
+        Args:
+            query (abcs.AtlasQuery): The query to check.
+
+        Raises:
+            InvalidQuery: If the query is invalid. Text of the exception
+                has the reason why.
+
+        Returns:
+            True: If the query is valid - so, always.
+        """
         if query.type not in [x.type for x in self.interfaces]:
             log.error("Tested query is invalid: unsupported type.")
             raise InvalidQuery
@@ -43,10 +55,6 @@ class Atlas:
                 "Not all query interfaces have the same type. Merging may fail."
             )
 
-        if len(set([x.merge_col for x in query_interfaces])) != 1:
-            log.error("Not all selected interfaces have the same merge col. Aborting.")
-            raise InvalidQuery
-
         if query.version != __version__:
             log.warn(
                 f"The query vas generated in version {query.version}, "
@@ -56,6 +64,20 @@ class Atlas:
         return True
 
     def fulfill_query(self, query: abcs.AtlasQuery) -> pd.DataFrame:
+        """Fulfill a given query.
+
+        Tests it for validity first.
+
+        Args:
+            query (abcs.AtlasQuery): The query to fulfill.
+
+        Raises:
+            Abort: If the program has to abort in a controlled way.
+            Any: Any error raised by the interfaces is re-raised by Atlas.
+
+        Returns:
+            pd.DataFrame: The fulfilled query dataframe.
+        """
         try:
             self.test_query(query)
         except InvalidQuery:
@@ -64,7 +86,6 @@ class Atlas:
         # We are sure that the query is fulfillable, here.
 
         query_interfaces = [x for x in self.interfaces if x.name in query.interfaces]
-        merge_col = query_interfaces[0].merge_col
 
         cpus = cpu_count()
 
@@ -120,15 +141,6 @@ class Atlas:
 
         log.info("Fulfilled query.")
         return merged
-
-    @property
-    def supported_paths(self):
-        paths = {}
-        for interface in self.interfaces:
-            for path in interface.paths:
-                paths.update({path: interface})
-
-        return paths
 
     @property
     def loaded_interfaces(self):
