@@ -2,6 +2,7 @@ import concurrent.futures
 import logging
 from functools import reduce
 from multiprocessing import cpu_count
+from typing import Optional
 
 import pandas as pd
 from tqdm import tqdm
@@ -63,7 +64,9 @@ class Atlas:
 
         return True
 
-    def fulfill_query(self, query: abcs.AtlasQuery) -> pd.DataFrame:
+    def fulfill_query(
+        self, query: abcs.AtlasQuery, max_cores: Optional[int] = None
+    ) -> pd.DataFrame:
         """Fulfill a given query.
 
         Tests it for validity first.
@@ -87,14 +90,17 @@ class Atlas:
 
         query_interfaces = [x for x in self.interfaces if x.name in query.interfaces]
 
-        cpus = cpu_count()
+        if max_cores is None:
+            n_processes = cpu_count()
+        else:
+            n_processes = max(1, min(max_cores, cpu_count()))
 
-        log.info(f"Spawning process pool with {cpus} workers.")
+        log.info(f"Spawning process pool with {n_processes} workers.")
         log.warning(
             f"The processing pool is not CTRL+C friendly. Use it with caution when killing Atlas."
         )
         with concurrent.futures.ProcessPoolExecutor(
-            cpus, initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),)
+            n_processes, initializer=tqdm.set_lock, initargs=(tqdm.get_lock(),)
         ) as pool:
             # Temporarily disable stream logging
             with handler_suppressed(logging.getLogger("atlas").handlers[1]):

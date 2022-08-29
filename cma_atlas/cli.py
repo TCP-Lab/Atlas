@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 import colorama as c
 import typer
@@ -153,10 +154,17 @@ def genquery_command(
 def retrieve_command(
     query_file: Path = typer.Argument(..., help="Input query file"),
     target: Path = typer.Argument(..., help="Output file location"),
+    core_limit: Optional[int] = typer.Argument(
+        default=None, help="Maximum number of cores to use."
+    ),
 ):
     """Retrieve data following a query file."""
     target = target.expanduser().resolve()
     query_file = query_file.expanduser().resolve()
+
+    if core_limit < 1:
+        log.error("Invalid core-limit option. Setting it to 1.")
+        core_limit = 1
 
     log.debug(
         f"Invoked retrieve command. Args: target: '{target}', query_file: '{query_file}'"
@@ -174,7 +182,7 @@ def retrieve_command(
     with query_file.open("r") as stream:
         query = AtlasQuery(yaml.safe_load(stream))
 
-    output_data = ATLAS.fulfill_query(query)
+    output_data = ATLAS.fulfill_query(query, core_limit)
 
     with target.open("w+") as output_stream:
         output_data.to_csv(output_stream)
