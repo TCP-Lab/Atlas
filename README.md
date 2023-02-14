@@ -1,3 +1,6 @@
+## Archive note
+### Atlas was an idea of a general-use, powerful database downloader, but it turns out that a lot of its functionality was already supplied by things like BioMart. This project was then closed in favour of other projects. This repository is currently archived for future reference.
+
 <p align="center">
   <!--
     <!-- Links to shields.io. Uncomment when needed, if needed.
